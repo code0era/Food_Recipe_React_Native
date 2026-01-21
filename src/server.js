@@ -1,25 +1,25 @@
-import "dotenv/config";
 import express from "express";
 import { ENV } from "./config/env.js";
 import { db } from "./config/db.js";
 import { favoritesTable } from "./db/schema.js";
-// --- ADD THIS LINE BELOW ---
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import job from "./config/cron.js";
 
 const app = express();
 const PORT = ENV.PORT || 5001;
 
+if (ENV.NODE_ENV === "production") job.start();
+
 app.use(express.json());
 
-// Health Check
 app.get("/api/health", (req, res) => {
   res.status(200).json({ success: true });
 });
 
-// POST: Add Favorite
 app.post("/api/favorites", async (req, res) => {
   try {
     const { userId, recipeId, title, image, cookTime, servings } = req.body;
+
     if (!userId || !recipeId || !title) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -43,7 +43,6 @@ app.post("/api/favorites", async (req, res) => {
   }
 });
 
-// GET: Fetch User Favorites
 app.get("/api/favorites/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -51,7 +50,7 @@ app.get("/api/favorites/:userId", async (req, res) => {
     const userFavorites = await db
       .select()
       .from(favoritesTable)
-      .where(eq(favoritesTable.userId, userId)); // eq is now imported!
+      .where(eq(favoritesTable.userId, userId));
 
     res.status(200).json(userFavorites);
   } catch (error) {
@@ -60,18 +59,18 @@ app.get("/api/favorites/:userId", async (req, res) => {
   }
 });
 
-// DELETE: Remove Favorite
 app.delete("/api/favorites/:userId/:recipeId", async (req, res) => {
   try {
     const { userId, recipeId } = req.params;
 
-    await db.delete(favoritesTable).where(
-      and(
-        // and is now imported!
-        eq(favoritesTable.userId, userId),
-        eq(favoritesTable.recipeId, recipeId), // Remove parseInt if recipeId is a string in your schema
-      ),
-    );
+    await db
+      .delete(favoritesTable)
+      .where(
+        and(
+          eq(favoritesTable.userId, userId),
+          eq(favoritesTable.recipeId, parseInt(recipeId)),
+        ),
+      );
 
     res.status(200).json({ message: "Favorite removed successfully" });
   } catch (error) {
